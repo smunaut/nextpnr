@@ -337,7 +337,7 @@ class SAPlacer
             for (auto bel : ctx->getBels()) {
                 if (ctx->getBelType(bel) == targetType && ctx->isValidBelForCell(cell, bel)) {
                     if (ctx->checkBelAvail(bel)) {
-                        uint64_t score = ctx->rng64();
+                        uint64_t score = ctx->scoreBelForCell(cell, bel) * 1024 + (ctx->rng64() & 1023);
                         if (score <= best_score) {
                             best_score = score;
                             best_bel = bel;

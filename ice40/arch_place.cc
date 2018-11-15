@@ -91,6 +91,31 @@ bool Arch::isBelLocationValid(BelId bel) const
     }
 }
 
+int Arch::scoreBelForCell(CellInfo *cell, BelId bel) const
+{
+    /* Only process LC */
+    if (cell->type != id_ICESTORM_LC)
+        return 0;
+
+    NPNR_ASSERT(getBelType(bel) == id_ICESTORM_LC);
+
+    /* If the cell doesn't have any FF, no preferences */
+    if (!cell->lcInfo.dffEnable)
+        return 8;
+
+    /* If the cell has a FF, then count how many bels would be used in that slice */
+    size_t num_cells = 0;
+
+    Loc bel_loc = getBelLocation(bel);
+    for (auto bel_other : getBelsByTile(bel_loc.x, bel_loc.y)) {
+        CellInfo *ci_other = getBoundBelCell(bel_other);
+        if (ci_other != nullptr && bel_other != bel)
+            num_cells++;
+    }
+
+    return 8 - num_cells;
+}
+
 bool Arch::isValidBelForCell(CellInfo *cell, BelId bel) const
 {
     if (cell->type == id_ICESTORM_LC) {

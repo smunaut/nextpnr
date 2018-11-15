@@ -826,6 +826,8 @@ struct Arch : BaseCtx
     // such as conflicting set/reset signals, etc
     bool isValidBelForCell(CellInfo *cell, BelId bel) const;
 
+    int scoreBelForCell(CellInfo *cell, BelId bel) const;
+
     // Return true whether all Bels at a given location are valid
     bool isBelLocationValid(BelId bel) const;
 

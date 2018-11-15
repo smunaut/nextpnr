@@ -827,6 +827,15 @@ static bool getWireXY_main(GfxTileWireId id, float &x, float &y)
         return true;
     }
 
+    // PadIn
+
+    if (id >= TILE_WIRE_PADIN_0 && id <= TILE_WIRE_PADIN_1) {
+        int idx = id - TILE_WIRE_PADIN_0;
+        x = main_swbox_x1 + 0.005 * (idx + 10);
+        y = main_swbox_y1;
+        return true;
+    }
+
     // GlobalNets
 
     if (id >= TILE_WIRE_GLB_NETWK_0 && id <= TILE_WIRE_GLB_NETWK_7) {

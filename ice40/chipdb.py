@@ -277,6 +277,7 @@ wiretypes["SP4_V"]        = 11
 wiretypes["SP4_H"]        = 12
 wiretypes["SP12_V"]       = 13
 wiretypes["SP12_H"]       = 14
+wiretypes["PAD2GLB"]      = 15
 
 def maj_wire_name(name):
     if name[2].startswith("lutff_"):
@@ -400,7 +401,7 @@ def wire_type(name):
         return "NONE"
 
     if name[0].startswith("padin_"):
-        return "NONE"
+        return "PAD2GLB"
 
     # print("No type for wire: %s (%s)" % (longname, name), file=sys.stderr)
     # assert 0

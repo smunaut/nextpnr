@@ -104,7 +104,8 @@ NPNR_PACKED_STRUCT(struct WireInfoPOD {
         WIRE_TYPE_SP4_V = 11,
         WIRE_TYPE_SP4_H = 12,
         WIRE_TYPE_SP12_V = 13,
-        WIRE_TYPE_SP12_H = 14
+        WIRE_TYPE_SP12_H = 14,
+        WIRE_TYPE_PAD2GLB = 15,
     };
 
     RelPtr<char> name;

@@ -394,6 +394,8 @@ IdString Arch::getWireType(WireId wire) const
         return id("SP12_V");
     case WireInfoPOD::WIRE_TYPE_SP12_H:
         return id("SP12_H");
+    case WireInfoPOD::WIRE_TYPE_PAD2GLB:
+        return id("PAD2GLB");
     }
     return IdString();
 }

@@ -459,12 +459,10 @@ def pipdelay(src_idx, dst_idx, db):
 
     if src[2].startswith("local_") and dst[2] in ("io_0/D_OUT_0", "io_0/D_OUT_1", "io_0/OUT_ENB", "io_1/D_OUT_0", "io_1/D_OUT_1", "io_1/OUT_ENB"):
         return db["IoInMux.I.O"]
-
     if re.match(r"lutff_\d+/in_\d+$", dst[2]):
         return db["InMux.I.O"]
-
     if re.match(r"lutff_\d+/in_\d+_lut", dst[2]):
-        return 0
+        return db["LogicCell40.in%d.lcout" % int(src[2][-1])] - db["LogicCell40.in%d.lcout" % int(dst[2][-5])]
 
     if re.match(r"ram/(MASK|RADDR|WADDR|WDATA)_", dst[2]):
         return db["InMux.I.O"]

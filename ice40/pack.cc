@@ -142,127 +142,143 @@ static bool net_is_constant(const Context *ctx, NetInfo *net, bool &value)
 static void pack_carries(Context *ctx)
 {
     log_info("Packing carries..\n");
-    std::unordered_set<IdString> exhausted_cells;
-    std::unordered_set<IdString> packed_cells;
-    std::vector<std::unique_ptr<CellInfo>> new_cells;
     int carry_only = 0;
+    // First look based on I3/CO connectivity, then based on just I0->I1/I1->I2 connectivity
+    std::unordered_set<IdString> exhausted_cells;
+    for (int mode = 0; mode <= 1; ++mode) {
+        std::unordered_set<IdString> packed_cells;
+        std::vector<std::unique_ptr<CellInfo>> new_cells;
 
-    for (auto cell : sorted(ctx->cells)) {
-        CellInfo *ci = cell.second;
-        if (is_carry(ctx, ci)) {
-            packed_cells.insert(cell.first);
-
-            CellInfo *carry_ci_lc;
-            bool ci_value;
-            bool ci_const = net_is_constant(ctx, ci->ports.at(ctx->id("CI")).net, ci_value);
-            if (ci_const) {
-                carry_ci_lc = nullptr;
-            } else {
-                carry_ci_lc = net_only_drives(ctx, ci->ports.at(ctx->id("CI")).net, is_lc, ctx->id("I3"), false);
-            }
-
-            std::set<IdString> i0_matches, i1_matches;
-            NetInfo *i0_net = ci->ports.at(ctx->id("I0")).net;
-            NetInfo *i1_net = ci->ports.at(ctx->id("I1")).net;
-            // Find logic cells connected to both I0 and I1
-            if (i0_net) {
-                for (auto usr : i0_net->users) {
-                    if (is_lc(ctx, usr.cell) && usr.port == ctx->id("I1")) {
-                        if (ctx->cells.find(usr.cell->name) != ctx->cells.end() &&
-                            exhausted_cells.find(usr.cell->name) == exhausted_cells.end()) {
-                            // This clause stops us double-packing cells
-                            i0_matches.insert(usr.cell->name);
-                            if (!i1_net && !usr.cell->ports.at(ctx->id("I2")).net) {
-                                // I1 is don't care when disconnected, duplicate I0
-                                i1_matches.insert(usr.cell->name);
-                            }
-                        }
-                    }
+        for (auto cell : sorted(ctx->cells)) {
+            CellInfo *ci = cell.second;
+            if (is_carry(ctx, ci)) {
+                CellInfo *carry_ci_lc;
+                bool ci_value;
+                bool ci_const = net_is_constant(ctx, ci->ports.at(ctx->id("CI")).net, ci_value);
+                if (ci_const) {
+                    carry_ci_lc = nullptr;
+                } else {
+                    carry_ci_lc = net_only_drives(ctx, ci->ports.at(ctx->id("CI")).net, is_lc, ctx->id("I3"), false);
                 }
-            }
-            if (i1_net) {
-                for (auto usr : i1_net->users) {
-                    if (is_lc(ctx, usr.cell) && usr.port == ctx->id("I2")) {
-                        if (ctx->cells.find(usr.cell->name) != ctx->cells.end() &&
-                            exhausted_cells.find(usr.cell->name) == exhausted_cells.end()) {
-                            // This clause stops us double-packing cells
-                            i1_matches.insert(usr.cell->name);
-                            if (!i0_net && !usr.cell->ports.at(ctx->id("I1")).net) {
-                                // I0 is don't care when disconnected, duplicate I1
-                                i0_matches.insert(usr.cell->name);
-                            }
-                        }
-                    }
-                }
-            }
 
-            std::set<IdString> carry_lcs;
-            std::set_intersection(i0_matches.begin(), i0_matches.end(), i1_matches.begin(), i1_matches.end(),
-                                  std::inserter(carry_lcs, carry_lcs.end()));
-            CellInfo *carry_lc = nullptr;
-            if (carry_ci_lc && carry_lcs.find(carry_ci_lc->name) != carry_lcs.end()) {
-                carry_lc = carry_ci_lc;
-            } else {
-                // No LC to pack into matching I0/I1, insert a new one
-                std::unique_ptr<CellInfo> created_lc =
-                        create_ice_cell(ctx, ctx->id("ICESTORM_LC"), cell.first.str(ctx) + "$CARRY");
-                carry_lc = created_lc.get();
-                created_lc->ports.at(ctx->id("I1")).net = i0_net;
+                std::set<IdString> i0_matches, i1_matches;
+                NetInfo *i0_net = ci->ports.at(ctx->id("I0")).net;
+                NetInfo *i1_net = ci->ports.at(ctx->id("I1")).net;
+                // Find logic cells connected to both I0 and I1
                 if (i0_net) {
-                    PortRef pr;
-                    pr.cell = created_lc.get();
-                    pr.port = ctx->id("I1");
-                    i0_net->users.push_back(pr);
+                    for (auto usr : i0_net->users) {
+                        if (is_lc(ctx, usr.cell) && usr.port == ctx->id("I1")) {
+                            if (ctx->cells.find(usr.cell->name) != ctx->cells.end() &&
+                                exhausted_cells.find(usr.cell->name) == exhausted_cells.end()) {
+                                // This clause stops us double-packing cells
+                                i0_matches.insert(usr.cell->name);
+                                if (!i1_net && !usr.cell->ports.at(ctx->id("I2")).net) {
+                                    // I1 is don't care when disconnected, duplicate I0
+                                    i1_matches.insert(usr.cell->name);
+                                }
+                            }
+                        }
+                    }
                 }
-                created_lc->ports.at(ctx->id("I2")).net = i1_net;
                 if (i1_net) {
-                    PortRef pr;
-                    pr.cell = created_lc.get();
-                    pr.port = ctx->id("I2");
-                    i1_net->users.push_back(pr);
+                    for (auto usr : i1_net->users) {
+                        if (is_lc(ctx, usr.cell) && usr.port == ctx->id("I2")) {
+                            if (ctx->cells.find(usr.cell->name) != ctx->cells.end() &&
+                                exhausted_cells.find(usr.cell->name) == exhausted_cells.end()) {
+                                // This clause stops us double-packing cells
+                                i1_matches.insert(usr.cell->name);
+                                if (!i0_net && !usr.cell->ports.at(ctx->id("I1")).net) {
+                                    // I0 is don't care when disconnected, duplicate I1
+                                    i0_matches.insert(usr.cell->name);
+                                }
+                            }
+                        }
+                    }
                 }
-                new_cells.push_back(std::move(created_lc));
-                ++carry_only;
-            }
-            carry_lc->params[ctx->id("CARRY_ENABLE")] = Property::State::S1;
-            replace_port(ci, ctx->id("CI"), carry_lc, ctx->id("CIN"));
-            replace_port(ci, ctx->id("CO"), carry_lc, ctx->id("COUT"));
-            if (i0_net) {
-                auto &i0_usrs = i0_net->users;
-                i0_usrs.erase(std::remove_if(i0_usrs.begin(), i0_usrs.end(), [ci, ctx](const PortRef &pr) {
-                    return pr.cell == ci && pr.port == ctx->id("I0");
-                }));
-            }
-            if (i1_net) {
-                auto &i1_usrs = i1_net->users;
-                i1_usrs.erase(std::remove_if(i1_usrs.begin(), i1_usrs.end(), [ci, ctx](const PortRef &pr) {
-                    return pr.cell == ci && pr.port == ctx->id("I1");
-                }));
-            }
 
-            // Check for constant driver on CIN
-            if (carry_lc->ports.at(ctx->id("CIN")).net != nullptr) {
-                IdString cin_net = carry_lc->ports.at(ctx->id("CIN")).net->name;
-                if (cin_net == ctx->id("$PACKER_GND_NET") || cin_net == ctx->id("$PACKER_VCC_NET")) {
-                    carry_lc->params[ctx->id("CIN_CONST")] = Property::State::S1;
-                    carry_lc->params[ctx->id("CIN_SET")] =
-                            cin_net == ctx->id("$PACKER_VCC_NET") ? Property::State::S1 : Property::State::S0;
-                    carry_lc->ports.at(ctx->id("CIN")).net = nullptr;
-                    auto &cin_users = ctx->nets.at(cin_net)->users;
-                    cin_users.erase(
-                            std::remove_if(cin_users.begin(), cin_users.end(), [carry_lc, ctx](const PortRef &pr) {
-                                return pr.cell == carry_lc && pr.port == ctx->id("CIN");
-                            }));
+                std::set<IdString> carry_lcs;
+                std::set_intersection(i0_matches.begin(), i0_matches.end(), i1_matches.begin(), i1_matches.end(),
+                                      std::inserter(carry_lcs, carry_lcs.end()));
+                CellInfo *carry_lc = nullptr;
+                if (carry_ci_lc && carry_lcs.find(carry_ci_lc->name) != carry_lcs.end()) {
+                    carry_lc = carry_ci_lc;
+                } else if (mode == 0) {
+                    continue;
+                } else if (!carry_lcs.empty()) {
+                    IdString lc_name = *carry_lcs.begin();
+                    if (ctx->cells.find(lc_name) != ctx->cells.end()) {
+                        carry_lc = ctx->cells.at(lc_name).get();
+                    } else {
+                        // Name might not be found in the Context, if it is a new cell
+                        auto new_pack =
+                                std::find_if(new_cells.begin(), new_cells.end(),
+                                             [lc_name](std::unique_ptr<CellInfo> &nc) { return nc->name == lc_name; });
+                        assert(new_pack != new_cells.end());
+                        carry_lc = new_pack->get();
+                    }
+                } else {
+                    // No LC to pack into matching I0/I1, insert a new one
+                    std::unique_ptr<CellInfo> created_lc =
+                            create_ice_cell(ctx, ctx->id("ICESTORM_LC"), cell.first.str(ctx) + "$CARRY");
+                    carry_lc = created_lc.get();
+                    created_lc->ports.at(ctx->id("I1")).net = i0_net;
+                    if (i0_net) {
+                        PortRef pr;
+                        pr.cell = created_lc.get();
+                        pr.port = ctx->id("I1");
+                        i0_net->users.push_back(pr);
+                    }
+                    created_lc->ports.at(ctx->id("I2")).net = i1_net;
+                    if (i1_net) {
+                        PortRef pr;
+                        pr.cell = created_lc.get();
+                        pr.port = ctx->id("I2");
+                        i1_net->users.push_back(pr);
+                    }
+                    new_cells.push_back(std::move(created_lc));
+                    ++carry_only;
                 }
+                packed_cells.insert(cell.first);
+                carry_lc->params[ctx->id("CARRY_ENABLE")] = Property::State::S1;
+                replace_port(ci, ctx->id("CI"), carry_lc, ctx->id("CIN"));
+                replace_port(ci, ctx->id("CO"), carry_lc, ctx->id("COUT"));
+                if (i0_net) {
+                    auto &i0_usrs = i0_net->users;
+                    i0_usrs.erase(std::remove_if(i0_usrs.begin(), i0_usrs.end(), [ci, ctx](const PortRef &pr) {
+                        return pr.cell == ci && pr.port == ctx->id("I0");
+                    }));
+                }
+                if (i1_net) {
+                    auto &i1_usrs = i1_net->users;
+                    i1_usrs.erase(std::remove_if(i1_usrs.begin(), i1_usrs.end(), [ci, ctx](const PortRef &pr) {
+                        return pr.cell == ci && pr.port == ctx->id("I1");
+                    }));
+                }
+
+                // Check for constant driver on CIN
+                if (carry_lc->ports.at(ctx->id("CIN")).net != nullptr) {
+                    IdString cin_net = carry_lc->ports.at(ctx->id("CIN")).net->name;
+                    if (cin_net == ctx->id("$PACKER_GND_NET") || cin_net == ctx->id("$PACKER_VCC_NET")) {
+                        carry_lc->params[ctx->id("CIN_CONST")] = Property::State::S1;
+                        carry_lc->params[ctx->id("CIN_SET")] =
+                                cin_net == ctx->id("$PACKER_VCC_NET") ? Property::State::S1 : Property::State::S0;
+                        carry_lc->ports.at(ctx->id("CIN")).net = nullptr;
+                        auto &cin_users = ctx->nets.at(cin_net)->users;
+                        cin_users.erase(
+                                std::remove_if(cin_users.begin(), cin_users.end(), [carry_lc, ctx](const PortRef &pr) {
+                                    return pr.cell == carry_lc && pr.port == ctx->id("CIN");
+                                }));
+                    }
+                }
+                exhausted_cells.insert(carry_lc->name);
             }
-            exhausted_cells.insert(carry_lc->name);
         }
-    }
-    for (auto pcell : packed_cells) {
-        ctx->cells.erase(pcell);
-    }
-    for (auto &ncell : new_cells) {
-        ctx->cells[ncell->name] = std::move(ncell);
+        for (auto pcell : packed_cells) {
+            ctx->cells.erase(pcell);
+        }
+        for (auto &ncell : new_cells) {
+            ctx->cells[ncell->name] = std::move(ncell);
+        }
     }
     log_info("    %4d LCs used as CARRY only\n", carry_only);
 }

@@ -953,6 +953,8 @@ struct Arch : BaseCtx
     bool isValidBelForCell(CellInfo *cell, BelId bel) const;
     bool isBelLocationValid(BelId bel) const;
 
+    int scoreBelForCell(CellInfo *cell, BelId bel) const;
+
     // Helper function for above
     bool slicesCompatible(const std::vector<const CellInfo *> &cells) const;
 

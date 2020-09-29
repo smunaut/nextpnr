@@ -117,6 +117,11 @@ bool Arch::isValidBelForCell(CellInfo *cell, BelId bel) const
     }
 }
 
+int Arch::scoreBelForCell(CellInfo *cell, BelId bel) const
+{
+	return random(); // getCtx()->rng64();
+}
+
 void Arch::permute_luts()
 {
     NetCriticalityMap nc;
